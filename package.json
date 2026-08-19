@@ -1,0 +1,26 @@
+{
+  "name": "@mohtasham/plan-publisher",
+  "version": "0.1.0",
+  "description": "No-login static visual plan publishing with draft-scoped edit secrets.",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "planpub": "./bin/planpub.js"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test",
+    "check": "npm test && node --check src/server.js && node --check bin/planpub.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.2.0",
+    "commander": "^14.0.0",
+    "express": "^5.1.0",
+    "nanoid": "^5.1.5",
+    "parse5": "^7.3.0"
+  }
+}

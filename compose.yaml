@@ -1,0 +1,16 @@
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      DATA_DIR: /data
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
+      TRUST_PROXY: ${TRUST_PROXY:-1}
+    volumes:
+      - plan_data:/data
+    ports:
+      - "127.0.0.1:3000:3000"
+
+volumes:
+  plan_data:

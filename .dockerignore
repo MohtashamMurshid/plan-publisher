@@ -1,0 +1,10 @@
+node_modules
+.git
+.data
+*.sqlite*
+npm-debug.log*
+test
+bin
+compose.yaml
+README.md
+NOTICE
