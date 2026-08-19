@@ -25,7 +25,7 @@ test("anonymous create uses an edit secret, versions are immutable, and CSP bloc
   const base = `http://127.0.0.1:${port}`;
   const child = spawn(process.execPath, ["src/server.js"], {
     cwd: path.resolve(import.meta.dirname, ".."),
-    env: { ...process.env, PORT: String(port), DATA_DIR: dataDir, PUBLIC_BASE_URL: base },
+    env: { ...process.env, PORT: String(port), DATA_DIR: dataDir, PUBLIC_BASE_URL: base, MAX_STORAGE_BYTES: "500" },
     stdio: ["ignore", "pipe", "pipe"]
   });
   let stderr = "";
@@ -60,6 +60,10 @@ test("anonymous create uses an edit secret, versions are immutable, and CSP bloc
   const blocked = await requestJson(`${base}/api/uploads`, { html: "<title>Bad</title><form action='/steal'></form>", filename: "bad.html" });
   assert.equal(blocked.response.status, 422);
   assert.match(blocked.body.errors.join(" "), /Blocked <form>/);
+
+  const overQuota = await requestJson(`${base}/api/uploads`, { html: `<title>Quota</title><p>${"x".repeat(450)}</p>`, filename: "quota.html" });
+  assert.equal(overQuota.response.status, 507);
+  assert.equal(overQuota.body.error, "Publisher storage limit reached.");
 
   const metadata = await (await fetch(`${base}/api/drafts/${created.body.draftId}`)).json();
   assert.equal(metadata.draft.currentVersion, 2);

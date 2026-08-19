@@ -24,6 +24,7 @@ Published documents are served byte-for-byte with a restrictive CSP:
 - forms, iframes, embeds, external scripts, event handlers, unsafe URL schemes, and meta refresh are rejected
 - inline CSS and HTTPS/data images are allowed
 - HTML is capped at 512 KiB
+- total stored versions are capped at 2 GiB by default (`MAX_STORAGE_BYTES`)
 - updates require a random draft-scoped edit token; the public draft URL alone cannot update a draft
 
 Do not publish private company information. Public links are intentionally readable without authentication.

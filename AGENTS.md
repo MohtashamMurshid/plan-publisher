@@ -12,7 +12,7 @@ Plan Publisher turns one self-contained HTML file into a public static review UR
 - Preserve byte-for-byte HTML serving and immutable numbered versions.
 - Keep browser CSP at least as restrictive as the current policy.
 - Reject active content before storage: forms, frames/embeds, external scripts, event handlers, unsafe URL protocols, and redirects.
-- Maintain the 512 KiB default limit and non-root container runtime.
+- Maintain the 512 KiB per-document limit, 2 GiB default storage ceiling, and non-root container runtime.
 
 ## Verification
 

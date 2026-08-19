@@ -10,6 +10,7 @@ const port = Number(process.env.PORT || 3000);
 const dataDir = path.resolve(process.env.DATA_DIR || ".data");
 const htmlDir = path.join(dataDir, "html");
 const maxHtmlBytes = Number(process.env.MAX_HTML_BYTES || 512 * 1024);
+const maxStorageBytes = Number(process.env.MAX_STORAGE_BYTES || 2 * 1024 * 1024 * 1024);
 const publicBaseUrl = (process.env.PUBLIC_BASE_URL || `http://localhost:${port}`).replace(/\/+$/, "");
 const draftIdPattern = /^[a-z0-9]{12}$/;
 const newDraftId = customAlphabet("abcdefghijklmnopqrstuvwxyz0123456789", 12);
@@ -75,6 +76,10 @@ app.post("/api/uploads", uploadRateLimit, async (req, res, next) => {
     const title = validation.title || existing?.title || cleanText(filename, 255) || "Untitled Plan";
     const nextVersion = (existing?.current_version || 0) + 1;
     const digest = sha256(html);
+    const storedBytes = Number(db.prepare("SELECT COALESCE(SUM(file_size), 0) AS total FROM versions").get().total);
+    if (storedBytes + Buffer.byteLength(html, "utf8") > maxStorageBytes) {
+      return res.status(507).json({ ok: false, error: "Publisher storage limit reached." });
+    }
     const relativePath = path.join(id, `${nextVersion}-${digest.slice(0, 12)}.html`);
     const absolutePath = path.join(htmlDir, relativePath);
     fs.mkdirSync(path.dirname(absolutePath), { recursive: true, mode: 0o700 });
@@ -164,8 +169,9 @@ for (const route of ["/d/:draftId/v/:versionNumber", "/d/:draftId/v/:versionNumb
 app.get("/", (req, res) => res.type("html").send(renderHome()));
 app.use((req, res) => res.status(404).type("html").send(renderNotFound()));
 app.use((error, req, res, _next) => {
-  console.error(error);
-  res.status(500).json({ ok: false, error: "Internal server error." });
+  const status = Number(error.status || error.statusCode || 500);
+  if (status >= 500) console.error(error);
+  res.status(status).json({ ok: false, error: status === 413 ? "Upload body is too large." : "Internal server error." });
 });
 
 const server = app.listen(port, "0.0.0.0", () => console.log(`Plan Publisher listening on ${port}`));
