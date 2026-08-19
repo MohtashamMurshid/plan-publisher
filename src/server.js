@@ -11,6 +11,7 @@ const dataDir = path.resolve(process.env.DATA_DIR || ".data");
 const htmlDir = path.join(dataDir, "html");
 const maxHtmlBytes = Number(process.env.MAX_HTML_BYTES || 512 * 1024);
 const maxStorageBytes = Number(process.env.MAX_STORAGE_BYTES || 2 * 1024 * 1024 * 1024);
+const uploadRateLimitMax = positiveInteger(process.env.UPLOAD_RATE_LIMIT_MAX, 20);
 const publicBaseUrl = (process.env.PUBLIC_BASE_URL || `http://localhost:${port}`).replace(/\/+$/, "");
 const draftIdPattern = /^[a-z0-9]{12}$/;
 const newDraftId = customAlphabet("abcdefghijklmnopqrstuvwxyz0123456789", 12);
@@ -47,7 +48,7 @@ db.exec(`
 
 const app = express();
 app.set("trust proxy", process.env.TRUST_PROXY === "1" ? 1 : false);
-app.use("/api", express.json({ limit: "700kb" }));
+const uploadJson = express.json({ limit: "700kb" });
 app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Referrer-Policy", "no-referrer");
@@ -56,7 +57,9 @@ app.use((req, res, next) => {
 });
 
 const uploadBuckets = new Map();
-app.post("/api/uploads", uploadRateLimit, async (req, res, next) => {
+const bucketCleanup = setInterval(() => purgeExpiredBuckets(Date.now()), 60_000);
+bucketCleanup.unref();
+app.post("/api/uploads", uploadRateLimit, uploadJson, async (req, res, next) => {
   try {
     const { html, filename, draftId, editToken, description, metadata = {} } = req.body || {};
     const validation = validateHtml(html, { maxBytes: maxHtmlBytes });
@@ -171,7 +174,8 @@ app.use((req, res) => res.status(404).type("html").send(renderNotFound()));
 app.use((error, req, res, _next) => {
   const status = Number(error.status || error.statusCode || 500);
   if (status >= 500) console.error(error);
-  res.status(status).json({ ok: false, error: status === 413 ? "Upload body is too large." : "Internal server error." });
+  const message = status === 413 ? "Upload body is too large." : status === 400 ? "Invalid JSON request body." : "Internal server error.";
+  res.status(status).json({ ok: false, error: message });
 });
 
 const server = app.listen(port, "0.0.0.0", () => console.log(`Plan Publisher listening on ${port}`));
@@ -244,21 +248,35 @@ function uploadRateLimit(req, res, next) {
   const now = Date.now();
   const current = uploadBuckets.get(key);
   if (!current || current.resetAt <= now) {
+    if (uploadBuckets.size >= 10_000) purgeExpiredBuckets(now, true);
     uploadBuckets.set(key, { count: 1, resetAt: now + 60_000 });
     return next();
   }
   current.count += 1;
-  if (current.count > Number(process.env.UPLOAD_RATE_LIMIT_MAX || 20)) {
+  if (current.count > uploadRateLimitMax) {
     res.setHeader("Retry-After", String(Math.ceil((current.resetAt - now) / 1000)));
     return res.status(429).json({ ok: false, error: "Upload rate limit exceeded." });
   }
   next();
 }
 
+function purgeExpiredBuckets(now, forceOldest = false) {
+  for (const [key, bucket] of uploadBuckets) {
+    if (bucket.resetAt <= now || (forceOldest && uploadBuckets.size >= 10_000)) uploadBuckets.delete(key);
+    if (forceOldest && uploadBuckets.size < 10_000) break;
+  }
+}
+
+function positiveInteger(value, fallback) {
+  const parsed = Number(value ?? fallback);
+  if (!Number.isInteger(parsed) || parsed < 1) throw new Error("UPLOAD_RATE_LIMIT_MAX must be a positive integer.");
+  return parsed;
+}
+
 function renderHome() {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Plan Publisher</title><style>
 :root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#090b0f;color:#edf2f7;font:15px/1.55 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.shell{max-width:880px;margin:auto;padding:72px 22px}.eyebrow{color:#f59e0b;font:700 12px/1.2 ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase}h1{max-width:700px;margin:18px 0 14px;font-size:clamp(40px,8vw,76px);line-height:.98;letter-spacing:-.055em}.lede{max-width:620px;color:#98a2b3;font-size:18px}.grid{display:grid;grid-template-columns:1.1fr .9fr;gap:14px;margin-top:46px}.card{min-width:0;border:1px solid #202630;border-radius:18px;background:#10141b;padding:22px}.card h2{margin:0 0 10px;font-size:16px}.card p,.note{color:#98a2b3}.step{display:flex;gap:12px;margin:16px 0}.n{display:grid;place-items:center;flex:0 0 28px;height:28px;border-radius:50%;background:#2a2010;color:#fbbf24;font:700 12px ui-monospace,monospace}pre{overflow:auto;margin:16px 0 0;padding:15px;border:1px solid #29313d;border-radius:10px;background:#080a0e;color:#d8dee9;font:13px/1.55 ui-monospace,SFMono-Regular,monospace}.pill{display:inline-block;margin:4px 4px 0 0;padding:5px 9px;border:1px solid #29313d;border-radius:99px;color:#c7d0dc;font-size:12px}@media(max-width:680px){.shell{padding-top:44px}.grid{grid-template-columns:1fr}h1{font-size:48px}}
-</style></head><body><main class="shell"><div class="eyebrow">plan.mohtasham.dev · static by design</div><h1>Ship the plan.<br>Not the setup.</h1><p class="lede">One HTML file becomes a public, phone-friendly review link. No account required. Every update creates an immutable version.</p><section class="grid"><article class="card"><h2>Publish in one command</h2><pre>npx --yes github:MohtashamMurshid/plan-publisher \\
+</style></head><body><main class="shell"><div class="eyebrow">postplan.oikina.com · static by design</div><h1>Ship the plan.<br>Not the setup.</h1><p class="lede">One HTML file becomes a public, phone-friendly review link. No account required. Every update creates an immutable version.</p><section class="grid"><article class="card"><h2>Publish in one command</h2><pre>npx --yes github:MohtashamMurshid/plan-publisher \\
   upload ./plan.html</pre><p class="note">The draft edit secret stays in <code>~/.planpub/</code>. The public URL cannot overwrite your plan.</p></article><article class="card"><h2>Deliberately constrained</h2><div><span class="pill">inline CSS</span><span class="pill">HTTPS images</span><span class="pill">version history</span></div><div class="step"><span class="n">×</span><div>Scripts, API requests, forms, iframes and redirects are blocked.</div></div><div class="step"><span class="n">✓</span><div>Ideal for plans, architecture briefs, reports and approval pages.</div></div></article></section></main></body></html>`;
 }
 

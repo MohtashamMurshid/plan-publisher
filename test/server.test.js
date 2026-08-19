@@ -12,6 +12,7 @@ test("HTML policy permits static documents and rejects active content", () => {
   for (const html of [
     "<title>x</title><form></form>",
     "<title>x</title><iframe src='https://example.com'></iframe>",
+    "<title>x</title><frameset><frame src='https://example.com'></frameset>",
     "<title>x</title><script src='https://example.com/x.js'></script>",
     "<title>x</title><img src=x onerror=alert(1)>",
     "<title>x</title><a href='java\nscript:alert(1)'>x</a>",
@@ -60,6 +61,14 @@ test("anonymous create uses an edit secret, versions are immutable, and CSP bloc
   const blocked = await requestJson(`${base}/api/uploads`, { html: "<title>Bad</title><form action='/steal'></form>", filename: "bad.html" });
   assert.equal(blocked.response.status, 422);
   assert.match(blocked.body.errors.join(" "), /Blocked <form>/);
+
+  const malformed = await fetch(`${base}/api/uploads`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{bad-json" });
+  assert.equal(malformed.status, 400);
+  assert.equal((await malformed.json()).error, "Invalid JSON request body.");
+
+  const oversized = await fetch(`${base}/api/uploads`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ html: "x".repeat(720 * 1024) }) });
+  assert.equal(oversized.status, 413);
+  assert.equal((await oversized.json()).error, "Upload body is too large.");
 
   const overQuota = await requestJson(`${base}/api/uploads`, { html: `<title>Quota</title><p>${"x".repeat(450)}</p>`, filename: "quota.html" });
   assert.equal(overQuota.response.status, 507);

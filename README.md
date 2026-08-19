@@ -1,6 +1,6 @@
 # Plan Publisher
 
-A no-login, static visual-plan publisher for `plan.mohtasham.dev`.
+A no-login, static visual-plan publisher for `postplan.oikina.com`.
 
 ## Upload
 

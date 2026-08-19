@@ -6,7 +6,7 @@ services:
       PORT: 3000
       DATA_DIR: /data
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
-      TRUST_PROXY: ${TRUST_PROXY:-1}
+      TRUST_PROXY: ${TRUST_PROXY:-0}
     volumes:
       - plan_data:/data
     ports:

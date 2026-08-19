@@ -1,6 +1,6 @@
 import * as parse5 from "parse5";
 
-const BLOCKED_TAGS = new Set(["form", "iframe", "object", "embed", "applet", "base", "link"]);
+const BLOCKED_TAGS = new Set(["form", "iframe", "frame", "frameset", "object", "embed", "applet", "base", "link"]);
 const URL_ATTRS = new Set(["href", "src", "action", "formaction", "poster", "srcdoc", "xlink:href"]);
 const BLOCKED_PROTOCOLS = ["javascript:", "vbscript:", "file:"];
 const ALLOWED_SCRIPT_TYPES = new Set(["", "text/javascript", "application/javascript"]);
